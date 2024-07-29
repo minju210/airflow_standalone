@@ -29,10 +29,8 @@ with DAG(
     # t1, t2 and t3 are examples of tasks created by instantiating operators
 
     task_check = BashOperator(
-        task_id="check.done",
-        bash_command="""
-        bash {{ var.value.CHECK_SH }} ~/data/done/{{ds_nodash}}/_DONE
-        """
+        task_id="check",
+        bash_command="bash {{ var.value.CHECK_SH }} {{ds_nodash}}"
     )
     
     task_to_csv = BashOperator(
@@ -77,18 +75,15 @@ with DAG(
             bash {{ var.value.SH_HOME }}/tmp2base.sh {{ ds }} 
         """
      )
-    
+           
     task_make_done = BashOperator(
         task_id="make.done",
         bash_command="""
-            figlet "make.done.start"
-
-            DONE_PATH={{ var.value.IMPORT_DONE_PATH }}/{{ds_nodash}}
-            mkdir -p $DONE_PATH
-            echo "IMPORT_DONE_PATH=$DONE_PATH"
-            touch $DONE_PATH/_DONE
-            
-            figlet "make.done.end"
+        
+        DONE_PATH=~/data/done/{{ds_nodash}}
+        mkdir -p ${DONE_PATH}
+        touch ${DONE_PATH}/_DONE       
+        
         """
     )
 
