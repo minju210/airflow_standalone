@@ -34,24 +34,19 @@ with DAG(
     catchup=True,
     tags=['movie', 'api', 'amt'],
 ) as dag:
-    def get_data(ds_nodash):
-        from mov.api.call import save2df
-        df = save2df(ds_nodash)
+    def get_data(ds, **kwargs):
+        print(ds)
+        print(kwargs)
+        print("=" * 20)
+        print(f"ds_nodash => {kwargs['ds_nodash']}")
+        print(f"kwargs type => {type(kwargs)}")
+        print("=" * 20)
+        from mov.api.call import get_key, save2df
+        key = get_key()
+        print(f"MOVIE_API_KEY => {key}")
+        YYYYMMDD = kwargs['ds_nodash']
+        df = save2df(YYYYMMDD)
         print(df.head(5))
-
-    def save_data(ds_nodash):
-        from mov.api.call import apply_type2df
-        
-        df = apply_type2df(load_dt=ds_nodash)
-        print("*" * 33)
-        print(df.head(10))
-        print("*" * 33)
-        print(df.dtypes)
-        
-        # 개봉일 기준 그룹핑 누적 관객수 합
-        g = df.groupby('openDt')
-        sum_df = g.agg({'audiCnt': 'sum'}).reset_index()
-        print(sum_df)
 
     def print_context(ds=None, **kwargs):
         """Print the Airflow context and ds variable from the context."""
@@ -64,13 +59,14 @@ with DAG(
         print("::endgroup::")
         return "Whatever you return gets printed in the logs"
     
-    def branch_fun(ds_nodash):
+    def branch_fun(**kwargs):
+        ld = kwargs['ds_nodash']
         import os
         home_dir = os.path.expanduser("~")
-        path = os.path.join(home_dir, f"tmp/test_parquet/load_dt={ds_nodash}")
+        path = (f'{home_dir}/tmp/test_parquet/load_dt={ld}')
+        path = os.path.join(home_dir, "tmp/test_parquet/load_dt={ld}")
         if os.path.exists(path):
-            return rm_dir.task_id
-            #return "rm.dir"
+            return "rm.dir"
         else:
             return "get.data", "echo.task"
         
@@ -84,18 +80,15 @@ with DAG(
         task_id="get.data",
         trigger_rule="all_done",
         python_callable=get_data,
-        requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
+        requirements=["git+https://github.com/minju210/movie.git@0.2/api"],
         system_site_packages=False,
-        #venv_cache_path="/home/minjoo/tmp2/air_venv/get_data"
     )
 
-    save_data = PythonVirtualenvOperator(
-        task_id="save.data",
-        python_callable=save_data,
-        system_site_packages=False,
-        trigger_rule="one_success",
-        requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
-        #venv_cache_path="/home/minjoo/tmp2/air_venv/get_data"
+    save_data = BashOperator(
+        task_id="save_data",
+        bash_command='date',
+        #trigger_rule="all_done"
+        trigger_rule="one_success"
     )
     
     rm_dir = BashOperator(
@@ -120,7 +113,7 @@ with DAG(
     start >> join_task >> save_data
 
     branch_op >> rm_dir >> get_data
-    branch_op >> echo_task >> save_data
+    branch_op >> echo_task
     branch_op >> get_data
     
     get_data >> save_data >> end
