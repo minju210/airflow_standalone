@@ -38,7 +38,7 @@ with DAG(
     def get_data(ds, **kwargs):
         print(ds)
         print(kwargs)
-        from mov.api.call import gen_url, req, get_key, req2list, list2df, save2df
+        from movie.api.call import gen_url, req, get_key, req2list, list2df, save2d
         print(f"ds_nodash => {kwargs['ds_nodash']}")
         key = get_key()
         print(f"MOVIE_API_KEY => {key}")
@@ -58,7 +58,7 @@ with DAG(
         return "Whatever you return gets printed in the logs"
     
     def save_data(ds_nodash):
-        from mov.api.call import apply_type2df
+        from movie.api.call import apply_type2df
         df = apply_type2df(load_dt=ds_nodash)
 
         g = df.groupby('openDt')
@@ -68,7 +68,7 @@ with DAG(
     def branch_fun(ds_nodash):
         import os
         home_dir = os.path.expanduser("~")
-        path = os.path.join(home_dir, f"tmp/test_parquet/load_dt={ds_nodash}")
+        path = os.path.join(home_dir, f"tmp/test_parquet/loadDt={ds_nodash}")
 
        #if os.path.exists(f'~/tmp/test_parquet/load_dt={ld}')
         if os.path.exists(path):
@@ -81,7 +81,7 @@ with DAG(
         task_id="get_data",
         trigger_rule="all_done",
         python_callable=get_data,
-        requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
+        requirements=["git+https://github.com/minju210/movie.git@0.2/api"],
         system_site_packages=False,
     )
 
