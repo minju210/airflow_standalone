@@ -47,11 +47,11 @@ with DAG(
             task_id = 'merge.df',
             )
 
-    df_dup = EmptyOperator(
-            task_id = 'df.dup',
+    de_dup = EmptyOperator(
+            task_id = 'de.dup',
             )
 
     summary_df = EmptyOperator(
             task_id = 'summary.df',
             )
-    task_start >> apply_type >> merge_df >> df_dup >> summary_df >> task_end
+    task_start >> apply_type >> merge_df >> de_dup >> summary_df >> task_end
