@@ -35,36 +35,56 @@ with DAG(
     catchup=True,
     tags=['movie', 'api', 'amt'],
 ) as dag:
-        
-    def common_get_data(ds_nodash, url_param):
-    #def common_get_data(ds_nodash, {"MOVIE_4_KEY": "F"}):
+    def get_data(ds, **kwargs):
+        print(ds)
+        print(kwargs)
+        from mov.api.call import gen_url, req, get_key, req2list, list2df, save2df
+        print(f"ds_nodash => {kwargs['ds_nodash']}")
+        key = get_key()
+        print(f"MOVIE_API_KEY => {key}")
+        date = kwargs['ds_nodash']
+        df = save2df(date)
+        print(df.head(5))
+    
+    def fun_multi_y(ds_nodash):
         from mov.api.call import save2df
-        df = save2df(load_dt=ds_nodash, url_param=url_param)
-        
-        print(df[['movieCd', 'movieNm']].head(5))
-        
-        for k, v in url_param.items():
-            df[k] = v
-        
-        #p_cols = list(url_param.keys()).insert(0, 'load_dt')
-        p_cols = ['load_dt'] + list(url_param.keys())
-        df.to_parquet('~/tmp/test_parquet', 
-                partition_cols=p_cols
-                # partition_cols=['load_dt', 'movieKey']
-        )
+        p = {"multiMovieYn": "Y"}
+        df = save2df(load_dt=ds_nodash, url_param=p)
+        print(df.head(5))
+    
+    def fun_multi_n(ds_nodash):
+        from mov.api.call import save2df
+        p = {"multiMovieYn": "N"}
+        df = save2df(load_dt=ds_nodash, url_param=p)
+        print(df.head(5))
 
+    def fun_nation_k(ds_nodash):
+        from mov.api.call import save2df
+        p = {"repNationCd": "K"}
+        df = save2df(load_dt=ds_nodash, url_param=p)
+        print(df.head(5))
+
+    def fun_nation_f(ds_nodash):
+        from mov.api.call import save2df
+        p = {"repNationCd": "F"}
+        df = save2df(load_dt=ds_nodash, url_param=p)
+        print(df.head(5))
+
+    def print_context(ds=None, **kwargs):
+        """Print the Airflow context and ds variable from the context."""
+        print("::group::All kwargs")
+        pprint(kwargs)
+        print(kwargs)
+        print("::endgroup::")
+        print("::group::Context variable ds")
+        print(ds)
+        print("::endgroup::")
+        return "Whatever you return gets printed in the logs"
+    
     def save_data(ds_nodash):
         from mov.api.call import apply_type2df
-        
         df = apply_type2df(load_dt=ds_nodash)
-        
-        print("*" * 33)
-        print(df.head(10))
-        print("*" * 33)
-        print(df.dtypes)
 
-        # 개봉일 기준 그룹핑 누적 관객수 합
-        print("개봉일 기준 그룹핑 누적 관객수 합")
         g = df.groupby('openDt')
         sum_df = g.agg({'audiCnt': 'sum'}).reset_index()
         print(sum_df)
@@ -80,11 +100,13 @@ with DAG(
         else:
             return "get.start", "echo.task"
 
-    branch_op = BranchPythonOperator(
-        task_id="branch.op",
-        python_callable=branch_fun
-    )
 
+    get_data = PythonVirtualenvOperator(
+        task_id="get_data",
+        python_callable=get_data,
+        requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
+        system_site_packages=False,
+    )
 
     save_data = PythonVirtualenvOperator(
         task_id='save.data',
@@ -98,50 +120,38 @@ with DAG(
     # 다양성 영화 유무
     multi_y = PythonVirtualenvOperator(
         task_id='multi.y',
-        python_callable=common_get_data,
-        system_site_packages=False,
+        python_callable=fun_multi_y,
         requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
-        #op_args=[1,2,3,4],
-        op_kwargs={
-            "url_param": {"multiMovieYn": "Y"},
-        },
+        system_site_packages=False,
     )
-
+    
     multi_n = PythonVirtualenvOperator(
         task_id='multi.n',
-        python_callable=common_get_data,
-        system_site_packages=False,
+        python_callable=fun_multi_n,
         requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
-        #op_args=["{{ds_nodash}}", "{{ds}}"],
-        op_kwargs={
-            "url_param": {"multiMovieYn": "N"}
-            #"ds": "2024-11-11",
-            #"ds_nodash", "2024111"
-        }
+        system_site_packages=False,
     )
-
+    
+    # 한국외국영화
     nation_k = PythonVirtualenvOperator(
         task_id='nation.k',
-        python_callable=common_get_data,
-        system_site_packages=False,
+        python_callable=fun_nation_k,
         requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
-        #op_args=["{{ds_nodash}}", "{{ds}}"],
-        op_kwargs={
-            "url_param": {"repNationCd": "K"}
-        }
+        system_site_packages=False,
     )
 
     nation_f = PythonVirtualenvOperator(
         task_id='nation.f',
-        python_callable=common_get_data,
-        system_site_packages=False,
+        python_callable=fun_nation_f,
         requirements=["git+https://github.com/minju210/movie.git@0.3/api"],
-        #op_args=["{{ds_nodash}}", "{{ds}}"],
-        op_kwargs={
-            "url_param": {"repNationCd": "F"}
-        }
+        system_site_packages=False,
     )
 
+
+    branch_op = BranchPythonOperator(
+        task_id="branch.op",
+        python_callable=branch_fun,
+    )
 
     rm_dir = BashOperator(
         task_id='rm.dir',
@@ -169,13 +179,13 @@ with DAG(
     )
     get_end = EmptyOperator(task_id='get.end')
 
-    
+
     start >> branch_op
     start >> throw_err >> save_data
 
     branch_op >> rm_dir >> get_start
-    branch_op >> get_start
     branch_op >> echo_task
-    get_start >> [multi_y, multi_n, nation_k, nation_f] >> get_end
+    branch_op >> get_start
+    get_start >> [get_data, multi_y, multi_n, nation_k, nation_f] >> get_end
 
     get_end >> save_data >> end
